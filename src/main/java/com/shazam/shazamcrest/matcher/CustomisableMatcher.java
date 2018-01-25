@@ -36,11 +36,22 @@ public interface CustomisableMatcher<T> extends Matcher<T> {
 	 */
 	CustomisableMatcher<T> ignoring(Class<?> clazz);
 
-    /**
+	/**
+	 * Specify the pattern of field names to ignore. Any bean property with a name that
+	 * matches the supplied pattern will be ignored.
+	 * Example:
+	 * <pre>assertThat(myBean, sameBeanAs(myResultBean).ignoring(is("mutationdate")).ignoring(containsString("version")))</pre>
+	 *
+	 * @param fieldNamePattern the Hamcrest matcher used to match field names.
+	 * @return the instance of the matcher
+	 */
+    CustomisableMatcher<T> ignoring(Matcher<String> fieldNamePattern);
+
+	/**
 	 * Specify the path of the field to be matched with a specific matcher.
 	 * Example:
 	 * <pre>sameBeanAs(expected).with("beanField.subBeanField", contains("element"))</pre>
-	 * 
+	 *
 	 * @param fieldPath the path of the field to be matched with the provided matcher.
 	 * @param matcher the Hamcrest matcher used to match the specified field.
 	 * @return the instance of the matcher
@@ -48,13 +59,13 @@ public interface CustomisableMatcher<T> extends Matcher<T> {
 	<V> CustomisableMatcher<T> with(String fieldPath, Matcher<V> matcher);
 
 	/**
-	 * Specify the pattern of field names to ignore. Any bean property with a name that
-	 * matches the supplied pattern will be ignored.
+	 * Specify the class type to be matched with a specific matcher.
 	 * Example:
-	 * <pre>assertThat(myBean, sameBeanAs(myResultBean).ignoring(is("mutationdate")).ignoring(containsString("version")))</pre>
-	 * 
-	 * @param pattern the Hamcrest matcher used to match field names.
+	 * <pre>sameBeanAs(expected).with(CustomObject.class, notNull())</pre>
+	 *
+	 * @param clazz the class type to be matched with the provided matcher.
+	 * @param matcher the Hamcrest matcher used to match the specified field.
 	 * @return the instance of the matcher
 	 */
-    CustomisableMatcher<T> ignoring(Matcher<String> fieldNamePattern);
+	<V> CustomisableMatcher<T> with(Class<V> clazz, Matcher<V> matcher);
 }

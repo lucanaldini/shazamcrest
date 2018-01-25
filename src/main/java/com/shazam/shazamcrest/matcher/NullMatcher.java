@@ -9,25 +9,24 @@
  */
 package com.shazam.shazamcrest.matcher;
 
-import static com.shazam.shazamcrest.CyclicReferenceDetector.getClassesWithCircularReferences;
-import static com.shazam.shazamcrest.matcher.GsonProvider.gson;
-import static org.hamcrest.CoreMatchers.nullValue;
-
 import org.hamcrest.Description;
+
+import static com.shazam.shazamcrest.CyclicReferenceDetector.getClassesWithCircularReferences;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 /**
  * {@link DiagnosingCustomisableMatcher} implementation which verifies a bean is null.
  */
 class NullMatcher<T> extends DiagnosingCustomisableMatcher<T> {
-	public NullMatcher(T expected) {
-		super(expected);
+	public NullMatcher() {
+		super(null);
 	}
 
     @Override
     protected boolean matches(Object actual, Description mismatchDescription) {
         if (actual != null) {
             circularReferenceTypes.addAll(getClassesWithCircularReferences(actual));
-            String actualJson = gson(typesToIgnore, patternsToIgnore, circularReferenceTypes).toJson(actual);
+            String actualJson = new GsonProvider(typesToIgnore, patternsToIgnore, circularReferenceTypes, classCustomMatchers).gsonForActual().toJson(actual);
             return appendMismatchDescription(mismatchDescription, "null", actualJson, "actual is not null");
         }
         return true;

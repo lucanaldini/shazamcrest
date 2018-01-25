@@ -26,7 +26,7 @@ public class Matchers {
 	 */
 	public static <T> CustomisableMatcher<T> sameBeanAs(final T expected) {
 		if (expected == null) {
-			return new NullMatcher<T>(expected);
+			return new NullMatcher<T>();
 		}
 		
 		if (isPrimitiveOrWrapper(expected.getClass()) || expected.getClass() == String.class || expected.getClass().isEnum()) {

@@ -9,6 +9,9 @@
 */
 package com.shazam.shazamcrest;
 
+import com.shazam.shazamcrest.model.ParentBean;
+import org.junit.Test;
+
 import static com.shazam.shazamcrest.matchers.ChildBeanMatchers.childStringEqualTo;
 import static com.shazam.shazamcrest.model.Bean.Builder.bean;
 import static com.shazam.shazamcrest.model.ChildBean.Builder.child;
@@ -20,14 +23,10 @@ import static org.hamcrest.collection.IsMapContaining.hasEntry;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-import org.junit.Test;
-
-import com.shazam.shazamcrest.model.ParentBean;
-
 /**
- * Tests which verify the possibility to match beans applying hamcrest matchers on specific fields.
+ * Tests which verify the possibility to match beans applying hamcrest matchers on fields by specifying their path.
  */
-public class MatcherAssertCustomMatchingTest {
+public class MatcherAssertPathCustomMatchingTest {
 
 	@Test
 	public void matchesPrimitiveWithCustomMatcher() {

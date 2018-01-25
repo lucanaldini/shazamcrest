@@ -9,6 +9,16 @@
 */
 package com.shazam.shazamcrest;
 
+import com.shazam.shazamcrest.model.Bean;
+import com.shazam.shazamcrest.model.BeanWithPrimitives;
+import com.shazam.shazamcrest.model.ChildBean;
+import com.shazam.shazamcrest.model.ParentBean;
+import org.junit.ComparisonFailure;
+import org.junit.Test;
+
+import java.util.Map;
+import java.util.Set;
+
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static com.shazam.shazamcrest.MatcherAssert.assertThat;
@@ -19,17 +29,6 @@ import static com.shazam.shazamcrest.model.ChildBean.Builder.child;
 import static com.shazam.shazamcrest.model.ParentBean.Builder.parent;
 import static com.shazam.shazamcrest.util.AssertionHelper.assertThat;
 import static com.shazam.shazamcrest.util.AssertionHelper.sameBeanAs;
-
-import java.util.Map;
-import java.util.Set;
-
-import org.junit.ComparisonFailure;
-import org.junit.Test;
-
-import com.shazam.shazamcrest.model.Bean;
-import com.shazam.shazamcrest.model.BeanWithPrimitives;
-import com.shazam.shazamcrest.model.ChildBean;
-import com.shazam.shazamcrest.model.ParentBean;
 
 /**
  * Tests for {@link MatcherAssert} which verify that fields can be ignored from the comparison.
@@ -327,7 +326,7 @@ public class MatcherAssertIgnoringFieldTest {
 		
 		assertThat(actual, sameBeanAs(expected).ignoring("string"));
 	}
-	
+
 	private enum TestEnum {
 		ONE
 	}

@@ -9,15 +9,15 @@
 */
 package com.shazam.shazamcrest;
 
-import static com.shazam.shazamcrest.ResultComparison.containsComparableJson;
-
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.junit.ComparisonFailure;
 
+import static com.shazam.shazamcrest.ResultComparison.containsComparableJson;
+
 /**
  * Modified version of {@link org.hamcrest.MatcherAssert}. If the matcher doesn't match, uses
- * {@link ResultComparison#containsComparableJson(Description)} to determine if a {@link ComparisonFailure} should be
+ * {@link ResultComparison#containsComparableJson(String, Description)} to determine if a {@link ComparisonFailure} should be
  * thrown. The exception is thrown instead of {@link AssertionError}, so that IDE like eclipse and IntelliJ can display a
  * pop-up window highlighting the String differences.
  */

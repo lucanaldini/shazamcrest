@@ -9,20 +9,6 @@
  */
 package com.shazam.shazamcrest.matcher;
 
-import static com.google.common.collect.Sets.newTreeSet;
-import static com.shazam.shazamcrest.FieldsIgnorer.MARKER;
-import static org.apache.commons.lang3.ClassUtils.isPrimitiveOrWrapper;
-
-import java.lang.reflect.Field;
-import java.lang.reflect.Type;
-import java.text.SimpleDateFormat;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 import com.google.common.base.Optional;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
@@ -38,47 +24,125 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
 import com.google.gson.graph.GraphAdapterBuilder;
-
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import org.hamcrest.Matcher;
+
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
+import static com.google.common.collect.Sets.newTreeSet;
+import static com.shazam.shazamcrest.FieldsIgnorer.MARKER;
+import static org.apache.commons.lang3.ClassUtils.isPrimitiveOrWrapper;
 
 /**
  * Provides an instance of {@link Gson}. If any class type has been ignored on the matcher, the {@link Gson} provided
  * will include an {@link ExclusionStrategy} which will skip the serialisation of fields for that type.
  */
-@SuppressWarnings("rawtypes")
 class GsonProvider {
 
 	private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("MMM d, yyyy hh:mm:ss.SSS aa");
+
+	private final List<Class<?>> typesToIgnore;
+	private final List<Matcher<String>> fieldsToIgnore;
+	private final Set<Class<?>> circularReferenceTypes;
+	private final Map<Class<?>, Matcher<?>> typesWithCustomMatchers;
+
+	GsonProvider(List<Class<?>> typesToIgnore, List<Matcher<String>> fieldsToIgnore, Set<Class<?>> circularReferenceTypes, Map<Class<?>, Matcher<?>> typesWithCustomMatchers) {
+		this.typesToIgnore = typesToIgnore;
+		this.fieldsToIgnore = fieldsToIgnore;
+		this.circularReferenceTypes = circularReferenceTypes;
+		this.typesWithCustomMatchers = typesWithCustomMatchers;
+	}
 
 	/**
      * Returns a {@link Gson} instance containing {@link ExclusionStrategy} based on the object types to ignore during
      * serialisation.
      *
-     * @param typesToIgnore the object types to exclude from serialisation
-     * @param circularReferenceTypes cater for circular referenced objects
-     * @return an instance of {@link Gson}
+	 * @return an instance of {@link Gson}
      */
-    public static Gson gson(final List<Class<?>> typesToIgnore, final List<Matcher<String>> fieldsToIgnore, Set<Class<?>> circularReferenceTypes) {
-    	final GsonBuilder gsonBuilder = initGson();
-    	
-        if (!circularReferenceTypes.isEmpty()) {
-            registerCircularReferenceTypes(circularReferenceTypes, gsonBuilder);
-        }
-        
-        gsonBuilder.registerTypeAdapter(Optional.class, new OptionalSerializer());
+	Gson gsonForActual() {
+		GsonBuilder gsonBuilder = initGsonBuilder();
 
-        registerSetSerialisation(gsonBuilder);
-        registerMapSerialisation(gsonBuilder);
-        registerDateSerialisation(gsonBuilder);
+		registerTypesWithCustomMatchersSerialisation(gsonBuilder, typesWithCustomMatchers);
+		registerExclusionStrategies(gsonBuilder, typesToIgnore, fieldsToIgnore);
 
-        markSetAndMapFields(gsonBuilder);
-        
-        registerExclusionStrategies(gsonBuilder, typesToIgnore, fieldsToIgnore);
-        
-        return gsonBuilder.create();
+		return gsonBuilder.create();
+	}
+
+	Gson gsonForExpected() {
+		GsonBuilder gsonBuilder = initGsonBuilder();
+
+		registerExclusionStrategies(gsonBuilder, both(typesToIgnore, typesWithCustomMatchers.keySet()), fieldsToIgnore);
+
+		return gsonBuilder.create();
     }
-    
+
+	private GsonBuilder initGsonBuilder() {
+		final GsonBuilder gsonBuilder = initGson();
+
+		registerCircularReferenceTypes(circularReferenceTypes, gsonBuilder);
+
+		registerGuavaOptionalSerialisation(gsonBuilder);
+		registerSetSerialisation(gsonBuilder);
+		registerMapSerialisation(gsonBuilder);
+		registerDateSerialisation(gsonBuilder);
+
+		markSetAndMapFields(gsonBuilder);
+
+		return gsonBuilder;
+	}
+
+	private static void registerTypesWithCustomMatchersSerialisation(GsonBuilder gsonBuilder, final Map<Class<?>, Matcher<?>> typesWithCustomMatchers) {
+		gsonBuilder.registerTypeAdapterFactory(new TypeAdapterFactory() {
+			@Override
+			public <T> TypeAdapter<T> create(final Gson gson, final TypeToken<T> type) {
+				final TypeAdapter<T> delegateAdapter = gson.getDelegateAdapter(this, type);
+
+				if (typesWithCustomMatchers.get(type.getRawType()) == null) {
+					return null;
+				}
+
+				return new TypeAdapter<T>() {
+					@Override
+					public void write(JsonWriter out, T value) throws IOException {
+						Matcher<?> matcher = typesWithCustomMatchers.get(type.getRawType());
+						if (!matcher.matches(value)) {
+							String jsonSnippet = null;
+							JsonElement jsonElement = delegateAdapter.toJsonTree(value);
+
+							if (!jsonElement.isJsonPrimitive() && !jsonElement.isJsonNull()) {
+								jsonSnippet = gson.toJson(jsonElement);
+							}
+							throw new CustomMatcherException(value, matcher, type.getRawType().getSimpleName(), jsonSnippet);
+						}
+
+						out.nullValue();
+					}
+
+					@Override
+					public T read(JsonReader in) throws IOException {
+						return null;
+					}
+				};
+			}
+		});
+	}
+
 	private static void registerExclusionStrategies(GsonBuilder gsonBuilder, final List<Class<?>> typesToIgnore, final List<Matcher<String>> fieldsToIgnore) {
 		if (typesToIgnore.isEmpty() && fieldsToIgnore.isEmpty()) {
 			return;
@@ -115,9 +179,9 @@ class GsonProvider {
 	}
 
 	private static void registerMapSerialisation(final GsonBuilder gsonBuilder) {
-		gsonBuilder.registerTypeHierarchyAdapter(Map.class, new JsonSerializer<Map>() {
+		gsonBuilder.registerTypeHierarchyAdapter(Map.class, new JsonSerializer<Map<Object, Object>>() {
 			@Override
-			public JsonElement serialize(Map map, Type type, JsonSerializationContext context) {
+			public JsonElement serialize(Map<Object, Object> map, Type type, JsonSerializationContext context) {
 				Gson gson = gsonBuilder.create();
 				
         		ArrayListMultimap<String, Object> objects = mapObjectsByTheirJsonRepresentation(map, gson);
@@ -127,9 +191,9 @@ class GsonProvider {
 	}
 
 	private static void registerSetSerialisation(final GsonBuilder gsonBuilder) {
-		gsonBuilder.registerTypeHierarchyAdapter(Set.class, new JsonSerializer<Set>() {
+		gsonBuilder.registerTypeHierarchyAdapter(Set.class, new JsonSerializer<Set<Object>>() {
         	@Override
-        	public JsonElement serialize(Set set, Type type, JsonSerializationContext context) {
+        	public JsonElement serialize(Set<Object> set, Type type, JsonSerializationContext context) {
         		Gson gson = gsonBuilder.create();
 
         		Set<Object> orderedSet = orderSetByElementsJsonRepresentation(set, gson);
@@ -148,15 +212,27 @@ class GsonProvider {
 	}
 
 	private static void registerCircularReferenceTypes(Set<Class<?>> circularReferenceTypes, GsonBuilder gsonBuilder) {
-		GraphAdapterBuilder graphAdapterBuilder = new GraphAdapterBuilder();
-		for (Class<?> circularReferenceType : circularReferenceTypes) {
-		    graphAdapterBuilder.addType(circularReferenceType);
+    	if (!circularReferenceTypes.isEmpty()) {
+			GraphAdapterBuilder graphAdapterBuilder = new GraphAdapterBuilder();
+			for (Class<?> circularReferenceType : circularReferenceTypes) {
+				graphAdapterBuilder.addType(circularReferenceType);
+			}
+			graphAdapterBuilder.registerOn(gsonBuilder);
 		}
-		graphAdapterBuilder.registerOn(gsonBuilder);
 	}
-    
-    @SuppressWarnings("unchecked")
-	private static Set<Object> orderSetByElementsJsonRepresentation(Set set, final Gson gson) {
+
+	private static void registerGuavaOptionalSerialisation(GsonBuilder gsonBuilder) {
+		gsonBuilder.registerTypeAdapter(Optional.class, new JsonSerializer<Optional<Object>>() {
+			@Override
+			public JsonElement serialize(Optional<Object> src, Type typeOfSrc, JsonSerializationContext context) {
+				JsonArray result = new JsonArray();
+				result.add(context.serialize(src.orNull()));
+				return result;
+			}
+		});
+	}
+
+	private static Set<Object> orderSetByElementsJsonRepresentation(Set<Object> set, final Gson gson) {
 		Set<Object> objects = newTreeSet(new Comparator<Object>() {
 			@Override
 			public int compare(Object o1, Object o2) {
@@ -166,11 +242,10 @@ class GsonProvider {
 		objects.addAll(set);
 		return objects;
 	}
-    
-    @SuppressWarnings("unchecked")
-	private static ArrayListMultimap<String, Object> mapObjectsByTheirJsonRepresentation(Map map, Gson gson) {
+
+	private static ArrayListMultimap<String, Object> mapObjectsByTheirJsonRepresentation(Map<Object, Object> map, Gson gson) {
     	ArrayListMultimap<String, Object> objects = ArrayListMultimap.create();
-    	for (Entry<Object, Object> mapEntry : (Set<Map.Entry<Object, Object>>)map.entrySet()) {
+    	for (Entry<Object, Object> mapEntry : map.entrySet()) {
     		objects.put(gson.toJson(mapEntry.getKey()).concat(gson.toJson(mapEntry.getValue())), mapEntry.getKey());
     	}
     	return objects;
@@ -183,8 +258,8 @@ class GsonProvider {
 		}
 		return array;
 	}
-	
-	private static JsonArray arrayOfObjectsOrderedByTheirJsonRepresentation(Gson gson, ArrayListMultimap<String, Object> objects, Map map) {
+
+	private static JsonArray arrayOfObjectsOrderedByTheirJsonRepresentation(Gson gson, ArrayListMultimap<String, Object> objects, Map<Object, Object> map) {
 		ImmutableList<String> sortedMapKeySet = Ordering.natural().immutableSortedCopy(objects.keySet());
 		JsonArray array = new JsonArray();
 		if (allKeysArePrimitiveOrStringOrEnum(sortedMapKeySet, objects)) {
@@ -207,10 +282,10 @@ class GsonProvider {
 				}
 			}
 		}
-		
+
 		return array;
 	}
-	  
+
     private static boolean allKeysArePrimitiveOrStringOrEnum(ImmutableList<String> sortedMapKeySet, ArrayListMultimap<String, Object> objects) {
     	for (String jsonRepresentation : sortedMapKeySet) {
 			List<Object> mapKeys = objects.get(jsonRepresentation);
@@ -226,14 +301,13 @@ class GsonProvider {
 	private static GsonBuilder initGson() {
 		return new GsonBuilder().setPrettyPrinting();
 	}
-	
-    private static class OptionalSerializer<T> implements JsonSerializer<Optional<T>> {
 
-        @Override
-        public JsonElement serialize(Optional<T> src, Type typeOfSrc, JsonSerializationContext context) {
-            JsonArray result = new JsonArray();
-            result.add(context.serialize(src.orNull()));
-            return result;
-        }
-    }
+	private static List<Class<?>> both(Collection<Class<?>> c1, Collection<Class<?>> c2) {
+		List<Class<?>> list = new ArrayList<Class<?>>();
+
+		list.addAll(c1);
+		list.addAll(c2);
+
+		return list;
+	}
 }

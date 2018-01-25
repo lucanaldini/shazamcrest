@@ -9,6 +9,10 @@
 */
 package com.shazam.shazamcrest;
 
+import com.shazam.shazamcrest.model.ParentBean;
+import org.hamcrest.MatcherAssert;
+import org.junit.Test;
+
 import static com.shazam.shazamcrest.matchers.ChildBeanMatchers.childStringEqualTo;
 import static com.shazam.shazamcrest.model.ChildBean.Builder.child;
 import static com.shazam.shazamcrest.model.ParentBean.Builder.parent;
@@ -18,18 +22,13 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.StringEndsWith.endsWith;
 import static org.junit.Assert.fail;
 
-import org.hamcrest.MatcherAssert;
-import org.junit.Test;
-
-import com.shazam.shazamcrest.model.ParentBean;
-
 /**
- * Tests which verify the diagnostic displayed when a custom matcher fails.
+ * Tests which verify the diagnostic displayed when a path custom matcher fails.
  */
-public class MatcherAssertCustomMatchingDiagnosticTest {
+public class MatcherAssertPathCustomMatchingDiagnosticTest {
 
 	@Test
-	public void includesDescriptionAndMismatchDescriptionForFailingMatcherOnPrimiteField() {
+	public void includesDescriptionAndMismatchDescriptionForFailingMatcherOnPrimitiveField() {
 		ParentBean.Builder expected = parent().childBean(child().childString("apple"));
 		ParentBean.Builder actual = parent().childBean(child().childString("banana"));
 		
